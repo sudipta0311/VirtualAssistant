@@ -341,7 +341,10 @@ if "thread_id" not in st.session_state:
 
 # Now use the dynamically generated thread_id in your config.
 config = {"configurable": {"thread_id": st.session_state.thread_id}}
-history=""
+
+if "history" not in st.session_state:
+    st.session_state.history = ""
+
 
 import pprint
 
@@ -352,7 +355,7 @@ if "conversation" not in st.session_state:
 
 def run_virtual_assistant():
     st.title("Virtual Agent")
-    global history
+    
     # Display conversation history if available.
     if st.session_state.conversation:
         st.subheader("Conversation History")
@@ -394,7 +397,8 @@ def run_virtual_assistant():
             
             # Render the final response.
             st.markdown(final_message_content)
-            history+=final_message_content
+            st.session_state.history+=final_message_content
+        
 
 if __name__ == "__main__":
     run_virtual_assistant()
