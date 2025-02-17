@@ -347,9 +347,16 @@ graph = workflow.compile(checkpointer=memory)
 # }
 
 #############################################GUI#################################################
+import uuid
+import streamlit as st
 
+# Generate a thread_id dynamically if it doesn't exist in session state.
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = str(uuid.uuid4())
 
-config = {"configurable": {"thread_id": "aaa1234"}}
+# Now use the dynamically generated thread_id in your config.
+config = {"configurable": {"thread_id": st.session_state.thread_id}}
+
 
 import streamlit as st
 import pprint
