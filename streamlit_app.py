@@ -352,7 +352,7 @@ if "conversation" not in st.session_state:
 
 def run_virtual_assistant():
     st.title("Virtual Agent")
-    
+    global history
     # Display conversation history if available.
     if st.session_state.conversation:
         st.subheader("Conversation History")
