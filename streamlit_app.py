@@ -116,19 +116,14 @@ def grade_documents(state) -> Literal["generate", "rewrite"]:
     )
 
     chain = prompt | llm_with_tool
+    
     messages = state["messages"]
     last_message = messages[-1]
-    
-    # Get the most recent user question
-    question = None
-    for role, content in reversed(messages):
-        if role == "user":
-            question = content
-            break
-    if question is None:
-        question = ""
-    
-    docs = last_message[1]  # assuming last_message is a tuple ("assistant", doc_text)
+
+    #question = messages[0].content
+    question = get_latest_user_question(messages)
+    docs = last_message.content
+
     scored_result = chain.invoke({"question": question, "context": docs})
     score = scored_result.binary_score
 
