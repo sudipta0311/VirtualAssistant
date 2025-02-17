@@ -358,8 +358,9 @@ def run_virtual_assistant():
     
     # Display conversation history if available.
     if st.session_state.conversation:
-        st.subheader("Conversation History")
-        st.markdown({st.session_state.history})
+        with st.expander("Click here to see the old conversation"):
+            st.subheader("Conversation History")
+            st.markdown({st.session_state.history})
 
     # Use a form to handle user input and clear the field after submission.
     with st.form(key="qa_form", clear_on_submit=True):
