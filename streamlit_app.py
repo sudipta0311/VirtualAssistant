@@ -119,7 +119,9 @@ def grade_documents(state) -> Literal["generate", "rewrite"]:
     last_message = messages[-1]
 
     #question = messages[0].content
-    question = get_latest_user_question(messages)
+    #question = get_latest_user_question(messages)
+    question = get_latest_user_question(st.session_state.conversation)
+
     docs = last_message.content
 
     scored_result = chain.invoke({"question": question, "context": docs})
@@ -172,7 +174,9 @@ def rewrite(state):
     print("---TRANSFORM QUERY FOR YOUSEE DENMARK---")
     
     messages = state["messages"]
-    question = get_latest_user_question(messages)
+    #question = get_latest_user_question(messages)
+    question = get_latest_user_question(st.session_state.conversation)
+
 
     # Prompt to force contextualization for YOUSEE DENMARK
     msg = [
@@ -202,7 +206,8 @@ def generate(state):
     print("---GENERATE---")
     messages = state["messages"]
     
-    question = get_latest_user_question(messages)
+    #question = get_latest_user_question(messages)
+    question = get_latest_user_question(st.session_state.conversation)
     # Assume the last assistant message (or retrieved content) holds the context.
     last_message = messages[-1]
     docs = last_message.content
