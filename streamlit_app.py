@@ -106,17 +106,21 @@ def grade_documents(state) -> Literal["generate", "rewrite"]:
         input_variables=["context", "question"],
     )
 
-    # Chain
-    chain = prompt | llm_with_tool
-
+   chain = prompt | llm_with_tool
     messages = state["messages"]
     last_message = messages[-1]
-
-    question = messages[0].content
-    docs = last_message.content
-
+    
+    # Get the most recent user question
+    question = None
+    for role, content in reversed(messages):
+        if role == "user":
+            question = content
+            break
+    if question is None:
+        question = ""
+    
+    docs = last_message[1]  # assuming last_message is a tuple ("assistant", doc_text)
     scored_result = chain.invoke({"question": question, "context": docs})
-
     score = scored_result.binary_score
 
     if score == "yes":
@@ -164,9 +168,15 @@ def rewrite(state):
     """
 
     print("---TRANSFORM QUERY FOR YOUSEE DENMARK---")
-
+    
     messages = state["messages"]
-    question = messages[0].content  # Extract the user's question
+    question = None
+    for role, content in reversed(messages):
+        if role == "user":
+            question = content
+            break
+    if question is None:
+        question = ""
 
     # Prompt to force contextualization for YOUSEE DENMARK
     msg = [
@@ -193,65 +203,47 @@ def rewrite(state):
 
 
 def generate(state):
-    """
-    Generate answer
-
-    Args:
-        state (messages): The current state
-
-    Returns:
-         dict: The updated state with re-phrased question
-    """
     print("---GENERATE---")
     messages = state["messages"]
-    question = messages[0].content
+    
+    # Get the most recent user question.
+    question = None
+    for role, content in reversed(messages):
+        if role == "user":
+            question = content
+            break
+    if question is None:
+        question = ""
+    
+    # Assume the last assistant message (or retrieved content) holds the context.
     last_message = messages[-1]
-
-    docs = last_message.content
-
-    # Prompt
-   # prompt = hub.pull("rlm/rag-prompt")
+    docs = last_message[1]
+    
     prompt = PromptTemplate(
-    template="""
-    You are a telecom sales agent specializing in providing the best offers and plans for customers.
-    Your goal is to assist customers by answering their questions, providing relevant information based on the available context,
-    and creating a compelling sales proposal that convinces them to choose a product or service.
-
-    **Context Information:**
-    {context}
-
-    **Customer's Question:**
-    {question}
-
-    **Instructions:**
-    - If the context contains relevant details, use them to craft a persuasive sales pitch.
-    - Highlight the key benefits, special offers, and why the customer should choose this product or service.
-    - If there are multiple options, suggest the best one based on the customer's needs.
-    - If no relevant information is available, politely inform the customer:
-      "I'm sorry, but I don't have the details for that request at the moment."
-
-    **Sales Proposal Format:**
-    - **Greeting & Acknowledgment**: ("Thank you for your interest in our telecom services!")
-    - **Personalized Offer**: ("Based on your query, here’s the best plan for you...")
-    - **Key Benefits**: (Speed, coverage, price, special discounts, etc.)
-    - **Call to Action**: ("This is a limited-time offer! Would you like to proceed with this?")
-    """,
-    input_variables=["context", "question"],)
-
-
-    # LLM
+        template="""You are a telecom sales agent specializing in providing the best offers and plans for customers.
+        Your goal is to assist customers by answering their questions, providing relevant information based on the available context,
+        and creating a compelling sales proposal that convinces them to choose a product or service.
+        
+        **Context Information:**
+        {context}
+        
+        **Customer's Question:**
+        {question}
+        
+        **Instructions:**
+        - If the context contains relevant details, use them to craft a persuasive sales pitch.
+        - Highlight the key benefits, special offers, and why the customer should choose this product or service.
+        - If no relevant information is available, politely inform the customer:
+          "I'm sorry, but I don't have the details for that request at the moment."
+        """,
+        input_variables=["context", "question"],
+    )
+    
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, streaming=True)
-
-    # Post-processing
-    def format_docs(docs):
-        return "\n\n".join(doc.page_content for doc in docs)
-
-    # Chain
     rag_chain = prompt | llm | StrOutputParser()
-
-    # Run
     response = rag_chain.invoke({"context": docs, "question": question})
     return {"messages": [response]}
+
 
 
 #print("*" * 20 + "Prompt[rlm/rag-prompt]" + "*" * 20)
@@ -357,12 +349,8 @@ if "thread_id" not in st.session_state:
 # Now use the dynamically generated thread_id in your config.
 config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
-
-import streamlit as st
 import pprint
 
-# Global config for the graph (ensure 'graph' and necessary functions are defined globally)
-config = {"configurable": {"thread_id": "aaa1234"}}
 
 # Initialize session state for conversation history if it doesn't exist.
 if "conversation" not in st.session_state:
