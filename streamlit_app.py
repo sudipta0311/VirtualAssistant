@@ -212,7 +212,7 @@ def generate(state):
     question = get_latest_user_question(messages)
     # Assume the last assistant message (or retrieved content) holds the context.
     last_message = messages[-1]
-    docs = last_message[1]
+    docs = last_message.content
     
     prompt = PromptTemplate(
         template="""You are a telecom sales agent specializing in providing the best offers and plans for customers.
