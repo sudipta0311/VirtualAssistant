@@ -209,15 +209,7 @@ def generate(state):
     print("---GENERATE---")
     messages = state["messages"]
     
-    # Get the most recent user question.
-    question = None
-    for role, content in reversed(messages):
-        if role == "user":
-            question = content
-            break
-    if question is None:
-        question = ""
-    
+    question = get_latest_user_question(messages)
     # Assume the last assistant message (or retrieved content) holds the context.
     last_message = messages[-1]
     docs = last_message[1]
