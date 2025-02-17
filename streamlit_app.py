@@ -392,11 +392,11 @@ def run_virtual_assistant():
                     if isinstance(value, dict) and "messages" in value:
                         for msg in value["messages"]:
                             if hasattr(msg, "content"):
-                                final_message_content += msg.content + "\n"
+                                final_message_content = msg.content + "\n"
                                 # Append the assistant response to conversation history.
                                 st.session_state.conversation.append(("assistant", msg.content))
                             else:
-                                final_message_content += str(msg) + "\n"
+                                final_message_content = str(msg) + "\n"
                                 st.session_state.conversation.append(("assistant", str(msg)))
             
             # Render the final response.
