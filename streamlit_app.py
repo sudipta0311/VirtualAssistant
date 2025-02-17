@@ -106,7 +106,7 @@ def grade_documents(state) -> Literal["generate", "rewrite"]:
         input_variables=["context", "question"],
     )
 
-   chain = prompt | llm_with_tool
+    chain = prompt | llm_with_tool
     messages = state["messages"]
     last_message = messages[-1]
     
