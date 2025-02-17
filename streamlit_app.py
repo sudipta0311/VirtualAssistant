@@ -360,7 +360,7 @@ def run_virtual_assistant():
 
     # Use a form to handle user input and clear the field after submission.
     with st.form(key="qa_form", clear_on_submit=True):
-        user_input = st.text_input("Ask me anything about YouSee Denmark offers (or type 'reset' to clear):")
+        user_input = st.text_input("Ask me anything about telco offers (or type 'reset' to clear):")
         submit_button = st.form_submit_button(label="Submit")
 
     if submit_button and user_input:
