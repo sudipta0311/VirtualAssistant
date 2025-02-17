@@ -397,6 +397,7 @@ def run_virtual_assistant():
             
             # Render the final response.
             st.markdown(final_message_content)
+            st.session_state.history+="################MESSAGE###############"
             st.session_state.history+=final_message_content
         
 
