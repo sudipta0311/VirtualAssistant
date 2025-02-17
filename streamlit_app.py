@@ -351,12 +351,11 @@ if "conversation" not in st.session_state:
 
 def run_virtual_assistant():
     st.title("Virtual Agent")
-
+    history=""
     # Display conversation history if available.
     if st.session_state.conversation:
         st.subheader("Conversation History")
-        for role, msg in st.session_state.conversation:
-            st.markdown(f"**{role.capitalize()}:** {msg}")
+        st.markdown({history})
 
     # Use a form to handle user input and clear the field after submission.
     with st.form(key="qa_form", clear_on_submit=True):
@@ -394,6 +393,7 @@ def run_virtual_assistant():
             
             # Render the final response.
             st.markdown(final_message_content)
+            history+=final_message_content
 
 if __name__ == "__main__":
     run_virtual_assistant()
