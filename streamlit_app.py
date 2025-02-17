@@ -68,6 +68,15 @@ from pydantic import BaseModel, Field
 
 from langgraph.prebuilt import tools_condition
 
+def get_latest_user_question(messages):
+    # Iterate over the messages in reverse order.
+    for msg in reversed(messages):
+        # Check if the message is a HumanMessage.
+        # Adjust this check if you have a different way of identifying user messages.
+        if msg.__class__.__name__ == "HumanMessage":
+            return msg.content
+    return ""
+
 ### Edges
 
 
@@ -170,13 +179,7 @@ def rewrite(state):
     print("---TRANSFORM QUERY FOR YOUSEE DENMARK---")
     
     messages = state["messages"]
-    question = None
-    for role, content in reversed(messages):
-        if role == "user":
-            question = content
-            break
-    if question is None:
-        question = ""
+    question = get_latest_user_question(messages)
 
     # Prompt to force contextualization for YOUSEE DENMARK
     msg = [
