@@ -238,11 +238,11 @@ def generate(state):
         - **Customer Insight (if relevant):** Common concerns, trends, or suggested improvements.  
 
         **Supported Use Cases:**  
-        ✅ **Instantly answer customer queries** using past feedback.  
-        ✅ **Retrieve FAQs & troubleshooting tips** to resolve common issues.  
-        ✅ **Summarize real-time customer sentiment trends** from reviews.  
-        ✅ **Auto-extract feature requests** and suggest improvements.  
-        ✅ **Reduce workload by handling frequent inquiries automatically.**  
+        1**Instantly answer customer queries** using past feedback.  
+        2 **Retrieve FAQs & troubleshooting tips** to resolve common issues.  
+        3 **Summarize real-time customer sentiment trends** from reviews.  
+        4 **Auto-extract feature requests** and suggest improvements.  
+        5 **Reduce workload by handling frequent inquiries automatically.**  
         """
         ,
                 input_variables=["context", "question"],
