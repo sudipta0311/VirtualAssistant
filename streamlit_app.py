@@ -23,7 +23,7 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 
 # vector store 
-index_name = "demoindex"
+index_name = "knowlodgebase"
 
 index = pc.Index(index_name)
 
@@ -114,7 +114,7 @@ def grade_documents(state) -> Literal["generate", "rewrite"]:
     )
 
     chain = prompt | llm_with_tool
-    
+
     messages = state["messages"]
     last_message = messages[-1]
 
@@ -125,6 +125,7 @@ def grade_documents(state) -> Literal["generate", "rewrite"]:
     docs = last_message.content
 
     scored_result = chain.invoke({"question": question, "context": docs})
+
     score = scored_result.binary_score
 
     if score == "yes":
@@ -157,38 +158,39 @@ def agent(state):
     model = model.bind_tools(tools)
     response = model.invoke(messages)
     # We return a list, because this will get added to the existing list
+
     return {"messages": [response]}
 
 
 def rewrite(state):
     """
-    Transform the query to produce a better question contextualized for YOUSEE DENMARK.
+    Transform the query to produce a better question contextualized for telmore DENMARK.
 
     Args:
         state (messages): The current state
 
     Returns:
-        dict: The updated state with a re-phrased question specific to YOUSEE DENMARK
+        dict: The updated state with a re-phrased question specific to telmore DENMARK
     """
 
-    print("---TRANSFORM QUERY FOR YOUSEE DENMARK---")
-    
+    print("---TRANSFORM QUERY FOR telmore DENMARK---")
+
     messages = state["messages"]
     #question = get_latest_user_question(messages)
     question = get_latest_user_question(st.session_state.conversation)
 
 
-    # Prompt to force contextualization for YOUSEE DENMARK
+    # Prompt to force contextualization for telmore DENMARK
     msg = [
         HumanMessage(
             content=f"""
-        You are a virtual assistant specializing in Yousee denmark.
-        Your job is to refine the user's question to be more specific to Yousee Denmark’s services, plans, network, or offers.
+        You are a virtual assistant specializing in telmore denmark.
+        Your job is to refine the user's question to be more specific to telmore Denmark’s services, plans, network, or offers.
 
         **User's Original Question:**
         {question}
 
-        **Rewritten Question (must be relevant to Yousee denmark):**
+        **Rewritten Question (must be relevant to telmore denmark):**
         """,
         )
     ]
@@ -205,131 +207,151 @@ def rewrite(state):
 def generate(state):
     print("---GENERATE---")
     messages = state["messages"]
-    
+
     #question = get_latest_user_question(messages)
     question = get_latest_user_question(st.session_state.conversation)
     # Assume the last assistant message (or retrieved content) holds the context.
     last_message = messages[-1]
     docs = last_message.content
-    
+
     prompt = PromptTemplate(
-        template="""You are a telecom sales agent specializing in providing the best offers and plans for customers.
-        Your goal is to assist customers by answering their questions, providing relevant information based on the available context,
-        and creating a compelling sales proposal that convinces them to choose a product or service.
-        
-        **Context Information:**
-        {context}
-        
-        **Customer's Question:**
-        {question}
-        
-        **Instructions:**
-        - If the context contains relevant details, use them to craft a persuasive sales pitch.
-        - Highlight the key benefits, special offers, and why the customer should choose this product or service.
-        - If no relevant information is available, politely inform the customer:
-          "I'm sorry, but I don't have the details for that request at the moment."
-        """,
+        template = """
+            You are an intelligent virtual assistant for a telecom company, leveraging real customer reviews and feedback to support business teams. Your primary role is to analyze customer sentiment, extract insights from reviews, provide actionable recommendations, and generate sales proposals when a customer inquires about a product.
+
+            **Context Information (Retrieved Customer Reviews & Feedback):**
+            {context}
+
+            **User Inquiry:**
+            {question}
+
+            **Instructions:**
+            - Analyze the provided customer feedback and extract relevant complaints, sentiments, feature requests, or competitive insights.
+            - Provide a **concise summary** of the key issue or trend based on real customer experiences.
+            - Offer **insightful recommendations** tailored to the specific business function (customer support, marketing, product management, competitor analysis, or sales).
+            - If the inquiry is about a product or service, generate a **sales proposal** that highlights key benefits, features, pricing (if available), and relevant customer feedback.
+            - If applicable, suggest improvements, new features, or messaging strategies based on customer sentiment.
+            - If there is insufficient information, respond with: "I'm sorry, but I don't have enough information to provide a detailed response."
+            - Format your response in a structured, **business-ready manner** that can be directly used for decision-making.
+
+            **Response Format:**
+            - **Summary:** A brief analysis of the customer concern, trend, or sentiment.
+            - **Recommendation:** Suggested product, service, or improvement based on feedback.
+            - **Sales Proposal (if applicable):** If the inquiry is product-related, generate a structured sales proposal including:
+                - **Product Name & Description**
+                - **Key Features & Benefits**
+                - **Pricing (if available)**
+                - **Relevant Customer Testimonials**
+                - **Next Steps for Purchase**
+            - **Additional Notes:** Any extra insights, follow-up actions, or areas requiring further investigation.
+
+            **Example Use Cases (Supported Scenarios):**
+            1. **AI-Powered Customer Support Agent** – Retrieve past feedback to auto-generate customer service responses.
+            2. **Dynamic Review Analysis & Sentiment-Based Insights** – Summarize real-time customer sentiment trends.
+            3. **Intelligent Product Feedback & Feature Request Analyzer** – Extract and prioritize new feature requests.
+            4. **AI-Generated Review Summarization & Marketing Insights** – Summarize key strengths for marketing teams.
+            5. **Automated Review Response Generation** – Generate personalized responses to customer reviews.
+            6. **Competitor Benchmarking & Industry Analysis** – Compare your brand with competitors using sentiment trends.
+            7. **Fake Review Detection & Authenticity Scoring** – Identify and flag potential fake or bot-generated reviews.
+            8. **Proactive Business Decision Support** – Provide AI-driven recommendations for retention and growth.
+
+        """
+,
         input_variables=["context", "question"],
     )
-    
+
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, streaming=True)
     rag_chain = prompt | llm | StrOutputParser()
     response = rag_chain.invoke({"context": docs, "question": question})
     return {"messages": [response]}
 
-
-
-#print("*" * 20 + "Prompt[rlm/rag-prompt]" + "*" * 20)
-#prompt = hub.pull("rlm/rag-prompt").pretty_print()  # Show what the prompt looks like
-
+################################# GRAPH##################################
 from langgraph.graph import END, StateGraph, START
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from typing import Annotated, Sequence
 from typing_extensions import TypedDict
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, AIMessage
 from langgraph.graph.message import add_messages
+import streamlit as st
 
-# Define AgentState without a retry_count field (since we'll use a global variable)
+# Initialize session state for conversation history if it doesn't exist.
+if "conversation" not in st.session_state:
+    st.session_state.conversation = []  # List of tuples like ("user", "question") or ("assistant", "response")
+    # Initialize session state for retry count.
+if "retry_count" not in st.session_state:
+    st.session_state.retry_count = 0
+
+# Define AgentState (we don't include retry_count in AgentState because we'll use session state)
 class AgentState(TypedDict):
-    # The add_messages function defines how an update should be processed.
-    # Default is to replace; add_messages means "append."
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-# Global variable to track retry count.
-global_retry_count = 0
-
-# New wrapper to limit retries using a global variable.
+# New wrapper to limit retries using session state.
 def grade_documents_limited(state) -> str:
-    global global_retry_count
-    print("---TEST global retry count is ---", global_retry_count)
+    # Use the retry count from session state
+
+
 
     decision = grade_documents(state)  # This function must be defined elsewhere.
+    retry_count = st.session_state.retry_count +1
+    print("---TEST retry count is ---", retry_count)
 
     if decision == "rewrite":
-        if global_retry_count >= 2:
-            # Maximum retries reached: force to generate a response.
-            print("---Maximum retries reached: switching to generate---")
-            return "generate"
+        if retry_count >= 1:
+            # Maximum retries reached: return a special decision "final"
+            print("---Maximum retries reached: switching to final response---")
+            return "final"
         else:
-            # Increment the global retry counter and request a rewrite.
-            global_retry_count += 1
-            print("---after increment, global retry count is ---", global_retry_count)
+            # Increment the retry counter in session state.
+            st.session_state.retry_count = retry_count + 1
+            print("---after increment, retry count is ---", st.session_state.retry_count)
             return "rewrite"
     else:
         return decision
+    
+    # New node to handle the final response.
+def final_response(state):
+    final_msg = ("Sorry, this question is beyond my knowledge, as a virtual assistant I can only assist you "
+                 "with your needs on telecom service")
+    return {"messages": [AIMessage(content=final_msg)]}
 
 # Define a new graph.
 workflow = StateGraph(AgentState)
 
-# Define the nodes we will cycle between.
+# Define the nodes (agent, retrieve, rewrite, generate, and final_response).
 workflow.add_node("agent", agent)         # Agent node; function 'agent' must be defined.
 retrieve = ToolNode([retriever_tool])       # 'retriever_tool' must be defined.
 workflow.add_node("retrieve", retrieve)     # Retrieval node.
 workflow.add_node("rewrite", rewrite)       # Rewriting the question; function 'rewrite' must be defined.
 workflow.add_node("generate", generate)     # Generating the response; function 'generate' must be defined.
+workflow.add_node("final_response", final_response)  # Final response node.
 
 # Build the edges.
-# Start by rewriting the query.
 workflow.add_edge(START, "rewrite")
-# After rewriting, call the agent node to decide whether to retrieve or not.
 workflow.add_edge("rewrite", "agent")
-
-# Conditional edge from the agent.
 workflow.add_conditional_edges(
     "agent",
-    # This condition uses tools_condition to decide if retrieval is needed.
     tools_condition,  # Function 'tools_condition' must be defined.
     {
-        # If the agent decides to use tools, go to "retrieve".
         "tools": "retrieve",
-        # Otherwise, end the graph.
         END: END,
     },
 )
-
-# After retrieval, use the limited grade_documents function to decide.
+# In the retrieval branch, use the limited grade_documents function.
 workflow.add_conditional_edges(
     "retrieve",
     grade_documents_limited,
+    {
+        "rewrite": "rewrite",
+        "generate": "generate",
+        "final": "final_response"
+    }
 )
-
-# When generation is completed, end the graph.
 workflow.add_edge("generate", END)
-# Also allow looping: after rewriting, go back to agent (if needed).
 workflow.add_edge("rewrite", "agent")
 
 # Compile the graph.
-# If you don't need a checkpointer, compile without it.
 memory = MemorySaver()
 graph = workflow.compile(checkpointer=memory)
-#graph = workflow.compile()
-
-# When running the graph, initialize the state.
-# For example, in your Streamlit app, you might use:
-# inputs = {
-#     "messages": [("user", user_input)],
-# }
 
 #############################################GUI#################################################
 import uuid
@@ -354,8 +376,8 @@ if "conversation" not in st.session_state:
     st.session_state.conversation = []  # List of tuples like ("user", "question") or ("assistant", "response")
 
 def run_virtual_assistant():
-    st.title("Virtual Agent")
-    
+    st.title("Virtual assitant to support service desk agent")
+
     # Display conversation history if available.
     if st.session_state.conversation:
         with st.expander("Click here to see the old conversation"):
@@ -364,22 +386,23 @@ def run_virtual_assistant():
 
     # Use a form to handle user input and clear the field after submission.
     with st.form(key="qa_form", clear_on_submit=True):
-        user_input = st.text_input("Ask me anything about telco offers (or type 'reset' to clear):")
+        user_input = st.text_input("Ask me your question (or type 'reset' to clear):")
         submit_button = st.form_submit_button(label="Submit")
 
     if submit_button and user_input:
         # Allow the user to reset the conversation.
         if user_input.strip().lower() == "reset":
             st.session_state.conversation = []
+            st.session_state.retry_count = 0
             st.experimental_rerun()
         else:
             # Append the user's question to the conversation history.
             st.session_state.conversation.append(("user", user_input))
-            
+            st.session_state.retry_count = 0
+
             # Prepare the input for the graph using the entire conversation history.
             inputs = {
-                "messages": st.session_state.conversation,
-            }
+                "messages": st.session_state.conversation,            }
             
             final_message_content = ""
             # Process the input through the graph (assumes 'graph' is defined globally).
@@ -395,12 +418,12 @@ def run_virtual_assistant():
                             else:
                                 final_message_content = str(msg) + "\n"
                                 st.session_state.conversation.append(("assistant", str(msg)))
-            
+
             # Render the final response.
             st.markdown(final_message_content)
             st.session_state.history+="################MESSAGE###############"
             st.session_state.history+=final_message_content
-        
+
 
 if __name__ == "__main__":
     run_virtual_assistant()
