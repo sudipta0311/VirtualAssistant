@@ -23,7 +23,7 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 
 # vector store 
-index_name = "serviceagent"
+index_name = "agent"
 
 index = pc.Index(index_name)
 
