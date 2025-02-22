@@ -225,14 +225,14 @@ def generate(state):
         {question}  
 
         **Instructions:**  
-        - Use the provided context to generate a clear and concise response.  
+        - Use the provided context to generate a detailed response.  
         - Keep the answer factual and relevant—avoid adding extra details beyond the given context.  
-        - If multiple options exist, summarize them briefly.  
+        - If multiple options exist, select few of them.  
         - If no relevant information is available, respond with:  
         _"No relevant information found in the knowledge base."_  
 
         **Response Format:**  
-        - **Direct Answer**: Provide a straightforward response based on the context.  
+        - **Answer**: Provide a straightforward response based on the context.  
         - **Additional Details (if available)**: Summarize any relevant supporting info.  
         - **Next Steps (if needed)**: Suggest what the agent should do next.  
     """,
