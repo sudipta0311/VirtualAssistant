@@ -44,6 +44,8 @@ tools = [retriever_tool]
 ############################# Utility tasks ############################################
 from typing import Annotated, Sequence
 from typing_extensions import TypedDict
+from langchain_core.prompts import ChatPromptTemplate
+
 
 from langchain_core.messages import BaseMessage
 
