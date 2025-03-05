@@ -23,7 +23,7 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 
 # vector store 
-index_name = "knowlodgebase"
+index_name = "demoindex"
 
 index = pc.Index(index_name)
 
@@ -164,33 +164,33 @@ def agent(state):
 
 def rewrite(state):
     """
-    Transform the query to produce a better question contextualized for telmore DENMARK.
+    Transform the query to produce a better question contextualized for YOUSEE DENMARK.
 
     Args:
         state (messages): The current state
 
     Returns:
-        dict: The updated state with a re-phrased question specific to telmore DENMARK
+        dict: The updated state with a re-phrased question specific to YOUSEE DENMARK
     """
 
-    print("---TRANSFORM QUERY FOR telmore DENMARK---")
+    print("---TRANSFORM QUERY FOR YOUSEE DENMARK---")
 
     messages = state["messages"]
     #question = get_latest_user_question(messages)
     question = get_latest_user_question(st.session_state.conversation)
 
 
-    # Prompt to force contextualization for telmore DENMARK
+    # Prompt to force contextualization for YOUSEE DENMARK
     msg = [
         HumanMessage(
             content=f"""
-        You are a virtual assistant specializing in telmore denmark.
-        Your job is to refine the user's question to be more specific to telmore Denmark’s services, plans, network, or offers.
+        You are a virtual assistant specializing in Yousee denmark.
+        Your job is to refine the user's question to be more specific to Yousee Denmark’s services, plans, network, or offers.
 
         **User's Original Question:**
         {question}
 
-        **Rewritten Question (must be relevant to telmore denmark):**
+        **Rewritten Question (must be relevant to Yousee denmark):**
         """,
         )
     ]
@@ -215,33 +215,200 @@ def generate(state):
     docs = last_message.content
 
     prompt = PromptTemplate(
-        template="""
-            You are an AI assistant for a telecom customer service desk. Your job is to help agents quickly find accurate answers based on the available knowledge base.  
-
-        **Context Information:**  
-        {context}  
-
-        **Customer's Question:**  
-        {question}  
-
-        **Instructions:**  
-        - Use the provided context to generate a detailed response.  
-        - Keep the answer factual and relevant—avoid adding extra details beyond the given context.  
-        - If multiple options exist, select few of them.  
-        - If no relevant information is available, respond with:  
-        _"No relevant information found in the knowledge base."_  
-
-        **Response Format:**  
-        - **Answer**: Provide a straightforward response based on the context.  
-        - **Additional Details (if available)**: Summarize any relevant supporting info.  
-        - **Next Steps (if needed)**: Suggest what the agent should do next.  
-    """,
-    input_variables=["context", "question"],)
+        template="""You are a telecom sales agent specializing in providing the best offers and plans for customers.
+        Your goal is to assist customers by answering their questions, providing relevant information based on the available context,
+        and creating a compelling sales proposal that convinces them to choose a product or service.
+        
+        **Context Information:**
+        {context}
+        **Customer's Question:**
+        {question}
+        
+        **Instructions:**
+        - If the context contains relevant details, use them to craft a persuasive sales pitch.
+        - Highlight the key benefits, special offers, and why the customer should choose this product or service.
+        - If no relevant information is available, politely inform the customer:
+          "I'm sorry, but I don't have the details for that request at the moment."
+        """,
+        input_variables=["context", "question"],
+    )
 
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, streaming=True)
     rag_chain = prompt | llm | StrOutputParser()
     response = rag_chain.invoke({"context": docs, "question": question})
     return {"messages": [response]}
+
+### Hallucination Grader
+
+
+# Data model
+class GradeHallucinations(BaseModel):
+    """Binary score for hallucination present in generation answer."""
+
+    binary_score: str = Field(
+        description="Answer is grounded in the facts, 'yes' or 'no'"
+    )
+
+
+# LLM with function call
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+structured_llm_grader = llm.with_structured_output(GradeHallucinations)
+
+# Prompt
+system = """You are a grader assessing whether an LLM generation is grounded in / supported by a set of retrieved facts. \n 
+     Give a binary score 'yes' or 'no'. 'Yes' means that the answer is grounded in / supported by the set of facts."""
+hallucination_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system),
+        ("human", "Set of facts: \n\n {documents} \n\n LLM generation: {generation}"),
+    ]
+)
+
+hallucination_grader = hallucination_prompt | structured_llm_grader
+hallucination_grader.invoke({"documents": docs, "generation": generation})
+
+
+
+### Answer Grader
+
+
+# Data model
+class GradeAnswer(BaseModel):
+    """Binary score to assess answer addresses question."""
+
+    binary_score: str = Field(
+        description="Answer addresses the question, 'yes' or 'no'"
+    )
+
+
+# LLM with function call
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+structured_llm_grader = llm.with_structured_output(GradeAnswer)
+
+# Prompt
+system = """You are a grader assessing whether an answer addresses / resolves a question \n 
+     Give a binary score 'yes' or 'no'. Yes' means that the answer resolves the question."""
+answer_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system),
+        ("human", "User question: \n\n {question} \n\n LLM generation: {generation}"),
+    ]
+)
+
+answer_grader = answer_prompt | structured_llm_grader
+answer_grader.invoke({"question": question, "generation": generation})
+
+### Question Re-writer
+
+# LLM
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+# Prompt
+system = """You a question re-writer that converts an input question to a better version that is optimized \n 
+     for vectorstore retrieval. Look at the input and try to reason about the underlying semantic intent / meaning."""
+re_write_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system),
+        (
+            "human",
+            "Here is the initial question: \n\n {question} \n Formulate an improved question.",
+        ),
+    ]
+)
+
+question_rewriter = re_write_prompt | llm | StrOutputParser()
+question_rewriter.invoke({"question": question})
+
+
+#####################################
+
+def decide_to_generate(state):
+    """
+    Determines whether to generate an answer, or re-generate a question.
+
+    Args:
+        state (dict): The current graph state
+
+    Returns:
+        str: Binary decision for next node to call
+    """
+
+    print("---ASSESS GRADED DOCUMENTS---")
+    state["question"]
+    filtered_documents = state["documents"]
+
+    if not filtered_documents:
+        # All documents have been filtered check_relevance
+        # We will re-generate a new query
+        print(
+            "---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---"
+        )
+        return "transform_query"
+    else:
+        # We have relevant documents, so generate answer
+        print("---DECISION: GENERATE---")
+        return "generate"
+
+
+def grade_generation_v_documents_and_question(state):
+    """
+    Determines whether the generation is grounded in the document and answers question.
+
+    Args:
+        state (dict): The current graph state
+
+    Returns:
+        str: Decision for next node to call
+    """
+
+    print("---CHECK HALLUCINATIONS---")
+    question = state["question"]
+    documents = state["documents"]
+    generation = state["generation"]
+
+    score = hallucination_grader.invoke(
+        {"documents": documents, "generation": generation}
+    )
+    grade = score.binary_score
+
+    # Check hallucination
+    if grade == "yes":
+        print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
+        # Check question-answering
+        print("---GRADE GENERATION vs QUESTION---")
+        score = answer_grader.invoke({"question": question, "generation": generation})
+        grade = score.binary_score
+        if grade == "yes":
+            print("---DECISION: GENERATION ADDRESSES QUESTION---")
+            return "useful"
+        else:
+            print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
+            return "not useful"
+    else:
+        pprint("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
+        return "not supported"
+    
+#######################################
+
+def transform_query(state):
+    """
+    Transform the query to produce a better question.
+
+    Args:
+        state (dict): The current graph state
+
+    Returns:
+        state (dict): Updates question key with a re-phrased question
+    """
+
+    print("---TRANSFORM QUERY---")
+    question = state["question"]
+    documents = state["documents"]
+
+    # Re-write question
+    better_question = question_rewriter.invoke({"question": question})
+    return {"documents": documents, "question": better_question}
+
 
 ################################# GRAPH##################################
 from langgraph.graph import END, StateGraph, START
@@ -253,39 +420,18 @@ from langchain_core.messages import BaseMessage, AIMessage
 from langgraph.graph.message import add_messages
 import streamlit as st
 
-# Initialize session state for conversation history if it doesn't exist.
+# Initialize session state if not already set.
 if "conversation" not in st.session_state:
-    st.session_state.conversation = []  # List of tuples like ("user", "question") or ("assistant", "response")
-    # Initialize session state for retry count.
-if "retry_count" not in st.session_state:
-    st.session_state.retry_count = 0
+    st.session_state.conversation = []  # List of (role, message)
+if "generation_retry_count" not in st.session_state:
+    st.session_state.generation_retry_count = 0
+if "max_generation_retries" not in st.session_state:
+    st.session_state.max_generation_retries = 2  # Configurable maximum retries
 
 # Define AgentState (we don't include retry_count in AgentState because we'll use session state)
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-# New wrapper to limit retries using session state.
-def grade_documents_limited(state) -> str:
-    # Use the retry count from session state
-
-
-
-    decision = grade_documents(state)  # This function must be defined elsewhere.
-    retry_count = st.session_state.retry_count +1
-    print("---TEST retry count is ---", retry_count)
-
-    if decision == "rewrite":
-        if retry_count >= 1:
-            # Maximum retries reached: return a special decision "final"
-            print("---Maximum retries reached: switching to final response---")
-            return "final"
-        else:
-            # Increment the retry counter in session state.
-            st.session_state.retry_count = retry_count + 1
-            print("---after increment, retry count is ---", st.session_state.retry_count)
-            return "rewrite"
-    else:
-        return decision
     
     # New node to handle the final response.
 def final_response(state):
@@ -293,40 +439,79 @@ def final_response(state):
                  "with your needs on telecom service")
     return {"messages": [AIMessage(content=final_msg)]}
 
-# Define a new graph.
+def grade_generation_and_retry(state):
+    """
+    Invokes grade_generation_v_documents_and_question to assess whether the generation is
+    grounded in the retrieved documents and addresses the question. If not, it checks
+    the generation retry counter and either triggers a query transformation or returns a
+    final decision.
+    """
+    print("---CHECKING GENERATED ANSWER QUALITY---")
+    # Invoke your provided method to assess generation quality.
+    decision = grade_generation_v_documents_and_question(state)
+    
+    if decision == "useful":
+        # Answer is good: stop processing.
+        return "useful"
+    else:
+        # For "not useful" or "not supported", decide whether to re-run the query.
+        max_retries = st.session_state.max_generation_retries
+        current_retry = st.session_state.generation_retry_count
+        if current_retry < max_retries:
+            st.session_state.generation_retry_count = current_retry + 1
+            print(f"---Retry {st.session_state.generation_retry_count} of {max_retries}: Transforming query---")
+            return "transform_query"
+        else:
+            print("---Maximum generation retries reached: returning final response---")
+            return "final"
+# --- Build the Graph ---
+
 workflow = StateGraph(AgentState)
 
-# Define the nodes (agent, retrieve, rewrite, generate, and final_response).
-workflow.add_node("agent", agent)         # Agent node; function 'agent' must be defined.
-retrieve = ToolNode([retriever_tool])       # 'retriever_tool' must be defined.
+# Add nodes.
+workflow.add_node("agent", agent)         # Agent node (must be defined elsewhere).
+retrieve = ToolNode([retriever_tool])       # Retrieval tool node (retriever_tool must be defined).
 workflow.add_node("retrieve", retrieve)     # Retrieval node.
-workflow.add_node("rewrite", rewrite)       # Rewriting the question; function 'rewrite' must be defined.
-workflow.add_node("generate", generate)     # Generating the response; function 'generate' must be defined.
+workflow.add_node("rewrite", rewrite)       # Rewrite node (function 'rewrite' must be defined).
+workflow.add_node("generate", generate)     # Generate node (function 'generate' must be defined).
 workflow.add_node("final_response", final_response)  # Final response node.
+workflow.add_node("transform_query", transform_query)  # Transform query node.
+workflow.add_node("grade_generation", grade_generation_and_retry)  # Grade generation node.
 
-# Build the edges.
+# Define graph edges.
 workflow.add_edge(START, "rewrite")
 workflow.add_edge("rewrite", "agent")
 workflow.add_conditional_edges(
     "agent",
-    tools_condition,  # Function 'tools_condition' must be defined.
+    tools_condition,  # Decides whether to retrieve; must be defined.
     {
         "tools": "retrieve",
-        END: END,
+         END: END,
     },
 )
-# In the retrieval branch, use the limited grade_documents function.
 workflow.add_conditional_edges(
     "retrieve",
-    grade_documents_limited,
+    grade_documents,  # Now using the original grade_documents without retry logic.
     {
         "rewrite": "rewrite",
         "generate": "generate",
         "final": "final_response"
     }
 )
-workflow.add_edge("generate", END)
-workflow.add_edge("rewrite", "agent")
+# After generation, assess the quality of the answer.
+workflow.add_edge("generate", "grade_generation")
+workflow.add_conditional_edges(
+    "grade_generation",
+    lambda state: state,  # This node returns a branch key.
+    {
+        "useful": END,
+        "transform_query": "transform_query",
+        "final": "final_response"
+    }
+)
+# If the generation is not useful and we still have retries left,
+# transform the query and restart the cycle.
+workflow.add_edge("transform_query", "agent")
 
 # Compile the graph.
 memory = MemorySaver()
@@ -355,7 +540,7 @@ if "conversation" not in st.session_state:
     st.session_state.conversation = []  # List of tuples like ("user", "question") or ("assistant", "response")
 
 def run_virtual_assistant():
-    st.title("Virtual assitant to support service desk agent")
+    st.title("Virtual Agent")
 
     # Display conversation history if available.
     if st.session_state.conversation:
@@ -365,7 +550,7 @@ def run_virtual_assistant():
 
     # Use a form to handle user input and clear the field after submission.
     with st.form(key="qa_form", clear_on_submit=True):
-        user_input = st.text_input("Ask me your question (or type 'reset' to clear):")
+        user_input = st.text_input("Ask me anything about telco offers (or type 'reset' to clear):")
         submit_button = st.form_submit_button(label="Submit")
 
     if submit_button and user_input:
@@ -406,4 +591,3 @@ def run_virtual_assistant():
 
 if __name__ == "__main__":
     run_virtual_assistant()
-
