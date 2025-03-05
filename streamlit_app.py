@@ -44,8 +44,6 @@ tools = [retriever_tool]
 ############################# Utility tasks ############################################
 from typing import Annotated, Sequence
 from typing_extensions import TypedDict
-from langchain_core.prompts import ChatPromptTemplate
-
 
 from langchain_core.messages import BaseMessage
 
@@ -240,178 +238,6 @@ def generate(state):
     response = rag_chain.invoke({"context": docs, "question": question})
     return {"messages": [response]}
 
-### Hallucination Grader
-
-
-# Data model
-class GradeHallucinations(BaseModel):
-    """Binary score for hallucination present in generation answer."""
-
-    binary_score: str = Field(
-        description="Answer is grounded in the facts, 'yes' or 'no'"
-    )
-
-
-# LLM with function call
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-structured_llm_grader = llm.with_structured_output(GradeHallucinations)
-
-# Prompt
-system = """You are a grader assessing whether an LLM generation is grounded in / supported by a set of retrieved facts. \n 
-     Give a binary score 'yes' or 'no'. 'Yes' means that the answer is grounded in / supported by the set of facts."""
-hallucination_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system),
-        ("human", "Set of facts: \n\n {documents} \n\n LLM generation: {generation}"),
-    ]
-)
-
-hallucination_grader = hallucination_prompt | structured_llm_grader
-hallucination_grader.invoke({"documents": docs, "generation": generation})
-
-
-
-### Answer Grader
-
-
-# Data model
-class GradeAnswer(BaseModel):
-    """Binary score to assess answer addresses question."""
-
-    binary_score: str = Field(
-        description="Answer addresses the question, 'yes' or 'no'"
-    )
-
-
-# LLM with function call
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-structured_llm_grader = llm.with_structured_output(GradeAnswer)
-
-# Prompt
-system = """You are a grader assessing whether an answer addresses / resolves a question \n 
-     Give a binary score 'yes' or 'no'. Yes' means that the answer resolves the question."""
-answer_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system),
-        ("human", "User question: \n\n {question} \n\n LLM generation: {generation}"),
-    ]
-)
-
-answer_grader = answer_prompt | structured_llm_grader
-answer_grader.invoke({"question": question, "generation": generation})
-
-### Question Re-writer
-
-# LLM
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-
-# Prompt
-system = """You a question re-writer that converts an input question to a better version that is optimized \n 
-     for vectorstore retrieval. Look at the input and try to reason about the underlying semantic intent / meaning."""
-re_write_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system),
-        (
-            "human",
-            "Here is the initial question: \n\n {question} \n Formulate an improved question.",
-        ),
-    ]
-)
-
-question_rewriter = re_write_prompt | llm | StrOutputParser()
-question_rewriter.invoke({"question": question})
-
-
-#####################################
-
-def decide_to_generate(state):
-    """
-    Determines whether to generate an answer, or re-generate a question.
-
-    Args:
-        state (dict): The current graph state
-
-    Returns:
-        str: Binary decision for next node to call
-    """
-
-    print("---ASSESS GRADED DOCUMENTS---")
-    state["question"]
-    filtered_documents = state["documents"]
-
-    if not filtered_documents:
-        # All documents have been filtered check_relevance
-        # We will re-generate a new query
-        print(
-            "---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---"
-        )
-        return "transform_query"
-    else:
-        # We have relevant documents, so generate answer
-        print("---DECISION: GENERATE---")
-        return "generate"
-
-
-def grade_generation_v_documents_and_question(state):
-    """
-    Determines whether the generation is grounded in the document and answers question.
-
-    Args:
-        state (dict): The current graph state
-
-    Returns:
-        str: Decision for next node to call
-    """
-
-    print("---CHECK HALLUCINATIONS---")
-    question = state["question"]
-    documents = state["documents"]
-    generation = state["generation"]
-
-    score = hallucination_grader.invoke(
-        {"documents": documents, "generation": generation}
-    )
-    grade = score.binary_score
-
-    # Check hallucination
-    if grade == "yes":
-        print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
-        # Check question-answering
-        print("---GRADE GENERATION vs QUESTION---")
-        score = answer_grader.invoke({"question": question, "generation": generation})
-        grade = score.binary_score
-        if grade == "yes":
-            print("---DECISION: GENERATION ADDRESSES QUESTION---")
-            return "useful"
-        else:
-            print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
-            return "not useful"
-    else:
-        pprint("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
-        return "not supported"
-    
-#######################################
-
-def transform_query(state):
-    """
-    Transform the query to produce a better question.
-
-    Args:
-        state (dict): The current graph state
-
-    Returns:
-        state (dict): Updates question key with a re-phrased question
-    """
-
-    print("---TRANSFORM QUERY---")
-    question = state["question"]
-    documents = state["documents"]
-
-    # Re-write question
-    better_question = question_rewriter.invoke({"question": question})
-    return {"documents": documents, "question": better_question}
-
-
 ################################# GRAPH##################################
 from langgraph.graph import END, StateGraph, START
 from langgraph.prebuilt import ToolNode
@@ -422,18 +248,39 @@ from langchain_core.messages import BaseMessage, AIMessage
 from langgraph.graph.message import add_messages
 import streamlit as st
 
-# Initialize session state if not already set.
+# Initialize session state for conversation history if it doesn't exist.
 if "conversation" not in st.session_state:
-    st.session_state.conversation = []  # List of (role, message)
-if "generation_retry_count" not in st.session_state:
-    st.session_state.generation_retry_count = 0
-if "max_generation_retries" not in st.session_state:
-    st.session_state.max_generation_retries = 2  # Configurable maximum retries
+    st.session_state.conversation = []  # List of tuples like ("user", "question") or ("assistant", "response")
+    # Initialize session state for retry count.
+if "retry_count" not in st.session_state:
+    st.session_state.retry_count = 0
 
 # Define AgentState (we don't include retry_count in AgentState because we'll use session state)
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
+# New wrapper to limit retries using session state.
+def grade_documents_limited(state) -> str:
+    # Use the retry count from session state
+
+
+
+    decision = grade_documents(state)  # This function must be defined elsewhere.
+    retry_count = st.session_state.retry_count +1
+    print("---TEST retry count is ---", retry_count)
+
+    if decision == "rewrite":
+        if retry_count >= 1:
+            # Maximum retries reached: return a special decision "final"
+            print("---Maximum retries reached: switching to final response---")
+            return "final"
+        else:
+            # Increment the retry counter in session state.
+            st.session_state.retry_count = retry_count + 1
+            print("---after increment, retry count is ---", st.session_state.retry_count)
+            return "rewrite"
+    else:
+        return decision
     
     # New node to handle the final response.
 def final_response(state):
@@ -441,79 +288,40 @@ def final_response(state):
                  "with your needs on telecom service")
     return {"messages": [AIMessage(content=final_msg)]}
 
-def grade_generation_and_retry(state):
-    """
-    Invokes grade_generation_v_documents_and_question to assess whether the generation is
-    grounded in the retrieved documents and addresses the question. If not, it checks
-    the generation retry counter and either triggers a query transformation or returns a
-    final decision.
-    """
-    print("---CHECKING GENERATED ANSWER QUALITY---")
-    # Invoke your provided method to assess generation quality.
-    decision = grade_generation_v_documents_and_question(state)
-    
-    if decision == "useful":
-        # Answer is good: stop processing.
-        return "useful"
-    else:
-        # For "not useful" or "not supported", decide whether to re-run the query.
-        max_retries = st.session_state.max_generation_retries
-        current_retry = st.session_state.generation_retry_count
-        if current_retry < max_retries:
-            st.session_state.generation_retry_count = current_retry + 1
-            print(f"---Retry {st.session_state.generation_retry_count} of {max_retries}: Transforming query---")
-            return "transform_query"
-        else:
-            print("---Maximum generation retries reached: returning final response---")
-            return "final"
-# --- Build the Graph ---
-
+# Define a new graph.
 workflow = StateGraph(AgentState)
 
-# Add nodes.
-workflow.add_node("agent", agent)         # Agent node (must be defined elsewhere).
-retrieve = ToolNode([retriever_tool])       # Retrieval tool node (retriever_tool must be defined).
+# Define the nodes (agent, retrieve, rewrite, generate, and final_response).
+workflow.add_node("agent", agent)         # Agent node; function 'agent' must be defined.
+retrieve = ToolNode([retriever_tool])       # 'retriever_tool' must be defined.
 workflow.add_node("retrieve", retrieve)     # Retrieval node.
-workflow.add_node("rewrite", rewrite)       # Rewrite node (function 'rewrite' must be defined).
-workflow.add_node("generate", generate)     # Generate node (function 'generate' must be defined).
+workflow.add_node("rewrite", rewrite)       # Rewriting the question; function 'rewrite' must be defined.
+workflow.add_node("generate", generate)     # Generating the response; function 'generate' must be defined.
 workflow.add_node("final_response", final_response)  # Final response node.
-workflow.add_node("transform_query", transform_query)  # Transform query node.
-workflow.add_node("grade_generation", grade_generation_and_retry)  # Grade generation node.
 
-# Define graph edges.
+# Build the edges.
 workflow.add_edge(START, "rewrite")
 workflow.add_edge("rewrite", "agent")
 workflow.add_conditional_edges(
     "agent",
-    tools_condition,  # Decides whether to retrieve; must be defined.
+    tools_condition,  # Function 'tools_condition' must be defined.
     {
         "tools": "retrieve",
-         END: END,
+        END: END,
     },
 )
+# In the retrieval branch, use the limited grade_documents function.
 workflow.add_conditional_edges(
     "retrieve",
-    grade_documents,  # Now using the original grade_documents without retry logic.
+    grade_documents_limited,
     {
         "rewrite": "rewrite",
         "generate": "generate",
         "final": "final_response"
     }
 )
-# After generation, assess the quality of the answer.
-workflow.add_edge("generate", "grade_generation")
-workflow.add_conditional_edges(
-    "grade_generation",
-    lambda state: state,  # This node returns a branch key.
-    {
-        "useful": END,
-        "transform_query": "transform_query",
-        "final": "final_response"
-    }
-)
-# If the generation is not useful and we still have retries left,
-# transform the query and restart the cycle.
-workflow.add_edge("transform_query", "agent")
+workflow.add_edge("generate", END)
+workflow.add_edge("rewrite", "agent")
 
 # Compile the graph.
 memory = MemorySaver()
