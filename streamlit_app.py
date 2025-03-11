@@ -3,21 +3,19 @@ import os
 
 import streamlit as st
 
+# Retrieve secrets using st.secrets
 # Add an environment variable
 AZURE_OPENAI_API_KEY = st.secrets.get("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = st.secrets.get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_DEPLOYMENT_NAME= st.secrets.get("AZURE_OPENAI_DEPLOYMENT_NAME")
 AZURE_OPENAI_API_VERSION= st.secrets.get("AZURE_OPENAI_API_VERSION") 
 
-PINECONE_API_KEY = st.secrets.get("PINECONE_API_KEY")
-
-
 from langchain_openai import AzureChatOpenAI
 
 llm = AzureChatOpenAI(
-    azure_endpoint=AZURE_OPENAI_ENDPOINT,
-    azure_deployment=AZURE_OPENAI_DEPLOYMENT_NAME,
-    openai_api_version=AZURE_OPENAI_API_VERSION,
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
+    openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"],
 )
 
 import getpass
@@ -167,12 +165,10 @@ from langgraph.prebuilt import tools_condition
 
 def get_latest_user_question(messages):
     # Iterate over the messages in reverse order
-    for msg in reversed(messages):
-        # Check if the message is a HumanMessage.
-        # Adjust this check if you have a different way of identifying user messages.
-        if msg.__class__.__name__ == "HumanMessage":
-            return msg.content
-    return ""
+     for role, content in reversed(messages):
+        if role.lower() == "user":
+            return content
+     return ""
 
 ### Edges
 
@@ -452,7 +448,8 @@ def route_question(state):
     print("---ROUTE QUESTION---")
     messages = state["messages"]
     #question = messages[0].content
-    question = get_latest_user_question(messages)
+    question = get_latest_user_question(st.session_state.conversation)
+    print("user question" + question)
     source = question_router.invoke({"question": question})
     if source.datasource == "final_response":
         print("---ROUTE QUESTION TO final response---")
@@ -523,6 +520,7 @@ if "thread_id" not in st.session_state:
 # Now use the dynamically generated thread_id in your config.
 config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
+
 if "history" not in st.session_state:
     st.session_state.history = ""
 
@@ -561,8 +559,12 @@ def run_virtual_assistant():
 
             # Prepare the input for the graph using the entire conversation history.
             inputs = {
-                "messages": st.session_state.conversation,            }
+                "messages": st.session_state.conversation,            
+                }
             
+            #print("user input message "+ st.session_state.conversation)
+
+
             final_message_content = ""
             # Process the input through the graph (assumes 'graph' is defined globally).
             for output in graph.stream(inputs, config):
