@@ -246,7 +246,58 @@ def generate(state):
     response = rag_chain.invoke({"context": docs, "question": question})
     return {"messages": [response]}
 
-################################# GRAPH##################################
+
+############################# Router ####################################
+
+### Router
+
+from typing import Literal
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import BaseMessage, AIMessage
+
+from pydantic import BaseModel, Field
+
+
+# Data model
+class RouteQuery(BaseModel):
+    """Route a user query to the most relevant datasource."""
+
+    datasource: Literal["vector_store", "final_response"] = Field(
+        ...,
+        description="Given a user question choose to route it to web search or a vectorstore.",
+    )
+
+
+# LLM with function call
+
+structured_llm_router = llm.with_structured_output(RouteQuery)
+
+
+# Prompt
+system = """
+"You are an expert at determining whether a user's question should be answered using a vector store or a final response. The vector store contains documents related to
+laptop and computer troubleshooting guides. Use the vector store for questions on these topics. Additionally, if the user's question appears to be a follow-up
+(e.g., 'tell me more on this' or 'it didn't work'),retrieve relevant context from the vector store to provide a more informed response. If no relevant information is found in the vector store, use the final response."
+Instructions:
+If the question is about laptop or computer troubleshooting, retrieve relevant information from the vector store.
+If the question appears to reference an earlier conversation (e.g., a follow-up like "tell me more" or "it didn’t work"), try to retrieve context from previous interactions in the vector store before responding.
+If the question is unrelated to these topics and no relevant data exists in the vector store, provide a final response.
+"""
+route_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system),
+        ("human", "{question}"),
+    ] 
+)
+
+question_router = route_prompt | structured_llm_router
+
+
+
+################################# GRAPH###################################################
+
 from langgraph.graph import END, StateGraph, START
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
@@ -266,6 +317,30 @@ if "retry_count" not in st.session_state:
 # Define AgentState (we don't include retry_count in AgentState because we'll use session state)
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
+
+def route_question(state):
+    """
+    Route question to web search or RAG.
+
+    Args:
+        state (dict): The current graph state
+
+    Returns:
+        str: Next node to call
+    """
+
+    print("---ROUTE QUESTION---")
+    messages = state["messages"]
+    #question = messages[0].content
+    question = get_latest_user_question(messages)
+    source = question_router.invoke({"question": question})
+    if source.datasource == "final_response":
+        print("---ROUTE QUESTION TO WEB SEARCH---")
+        return "final_response"
+    elif source.datasource == "vector_store":
+        print("---ROUTE QUESTION TO RAG---")
+        return "vector_store"
+    
 
 # New wrapper to limit retries using session state.
 def grade_documents_limited(state) -> str:
@@ -308,7 +383,17 @@ workflow.add_node("generate", generate)     # Generating the response; function 
 workflow.add_node("final_response", final_response)  # Final response node.
 
 # Build the edges.
-workflow.add_edge(START, "rewrite")
+#workflow.add_edge(START, "rewrite")
+
+workflow.add_conditional_edges(
+    START,
+    route_question,
+    {
+        "final_response": "final_response",
+        "vector_store": "rewrite",
+    },
+)
+
 workflow.add_edge("rewrite", "agent")
 workflow.add_conditional_edges(
     "agent",
