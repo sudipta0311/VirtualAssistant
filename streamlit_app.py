@@ -197,7 +197,9 @@ def grade_documents(state) -> Literal["generate", "rewrite"]:
         binary_score: str = Field(description="Relevance score 'yes' or 'no'")
 
     # LLM
-    model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+    #model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+
+    model=llm
 
     # LLM with tool and validation
     llm_with_tool = model.with_structured_output(grade,method="function_calling")
@@ -253,7 +255,9 @@ def agent(state):
     """
     print("---CALL AGENT---")
     messages = state["messages"]
-    model = ChatOpenAI(temperature=0, streaming=True, model="gpt-4-turbo")
+    #model = ChatOpenAI(temperature=0, streaming=True, model="gpt-4-turbo")
+
+    model=llm
     model = model.bind_tools(tools)
     response = model.invoke(messages)
     # We return a list, because this will get added to the existing list
@@ -295,7 +299,8 @@ def rewrite(state):
     ]
 
     # Invoke the model to rephrase the question with Airtel context
-    model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+    #model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+    model = llm
     response = model.invoke(msg)
     print("relevent conextualized question=" + response.content)
 
@@ -340,7 +345,8 @@ def generate(state):
         input_variables=["context", "question"],
     )
 
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, streaming=True)
+   # llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, streaming=True)
+   
     rag_chain = prompt | llm | StrOutputParser()
     response = rag_chain.invoke({"context": docs, "question": question})
     return {"messages": [response]}
