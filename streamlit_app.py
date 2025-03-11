@@ -1,6 +1,8 @@
 import getpass
 import os
 
+import streamlit as st
+
 # Add an environment variable
 AZURE_OPENAI_API_KEY = st.secrets.get("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = st.secrets.get("AZURE_OPENAI_ENDPOINT")
