@@ -293,7 +293,7 @@ def grade_documents_limited(state) -> str:
     # New node to handle the final response.
 def final_response(state):
     final_msg = ("Sorry, this question is beyond my knowledge, as a virtual assistant I can only assist you "
-                 "with your needs on telecom service")
+                 "with troubleshooting laptop")
     return {"messages": [AIMessage(content=final_msg)]}
 
 # Define a new graph.
