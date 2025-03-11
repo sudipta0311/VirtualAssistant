@@ -23,7 +23,7 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 
 # vector store 
-index_name = "demoindex"
+index_name = "helpdesk"
 
 index = pc.Index(index_name)
 
@@ -164,33 +164,33 @@ def agent(state):
 
 def rewrite(state):
     """
-    Transform the query to produce a better question contextualized for YOUSEE DENMARK.
+    Transform the query to produce a better question contextualized for HP.
 
     Args:
         state (messages): The current state
 
     Returns:
-        dict: The updated state with a re-phrased question specific to YOUSEE DENMARK
+        dict: The updated state with a re-phrased question specific to HP
     """
 
-    print("---TRANSFORM QUERY FOR YOUSEE DENMARK---")
+    print("---TRANSFORM QUERY FOR HP---")
 
     messages = state["messages"]
     #question = get_latest_user_question(messages)
     question = get_latest_user_question(st.session_state.conversation)
 
 
-    # Prompt to force contextualization for YOUSEE DENMARK
+    # Prompt to force contextualization for HP
     msg = [
         HumanMessage(
             content=f"""
-        You are a virtual assistant specializing in Yousee denmark.
-        Your job is to refine the user's question to be more specific to Yousee Denmark’s services, plans, network, or offers.
+        You are a virtual assistant specializing in HP laptop.
+        Your job is to refine the user's question to be more specific to HP laptops troubleshooting.
 
         **User's Original Question:**
         {question}
 
-        **Rewritten Question (must be relevant to Yousee denmark):**
+        **Rewritten Question (must be relevant to HP laptop or accessories ):**
         """,
         )
     ]
@@ -215,20 +215,28 @@ def generate(state):
     docs = last_message.content
 
     prompt = PromptTemplate(
-        template="""You are a telecom sales agent specializing in providing the best offers and plans for customers.
-        Your goal is to assist customers by answering their questions, providing relevant information based on the available context,
-        and creating a compelling sales proposal that convinces them to choose a product or service.
-        
-        **Context Information:**
+        template="""
+        You are a helpdesk agent specializing in troubleshooting computer issues. Your goal is to assist customers by diagnosing problems, providing step-by-step solutions, and ensuring their systems are functioning properly."
+
+        Context Information:
         {context}
-        **Customer's Question:**
+
+        Customer's Issue:
         {question}
-        
-        **Instructions:**
-        - If the context contains relevant details, use them to craft a persuasive sales pitch.
-        - Highlight the key benefits, special offers, and why the customer should choose this product or service.
-        - If no relevant information is available, politely inform the customer:
-          "I'm sorry, but I don't have the details for that request at the moment."
+
+        Instructions:
+        If the context contains relevant details, use them to provide accurate troubleshooting steps.
+        Ask clarifying questions if needed to better understand the customer's issue.
+        Provide clear, concise, and actionable solutions in a step-by-step format.
+        If multiple solutions exist, suggest the most effective one first.
+        If no relevant information is available, politely inform the customer:
+        "I'm sorry, but I don't have enough details to resolve this issue. Could you provide more information?"
+        Troubleshooting Response Format:
+        Greeting & Acknowledgment: ("I'm here to help! Let's troubleshoot your issue.")
+        Problem Diagnosis: ("Based on your description, this issue may be caused by...")
+        Step-by-Step Solution: ("Try the following steps...")
+        Next Steps: ("If the issue persists, you may need to...")
+        Closing & Reassurance: ("Let me know if this resolves your issue! I'm happy to assist further.")
         """,
         input_variables=["context", "question"],
     )
@@ -360,7 +368,7 @@ def run_virtual_assistant():
 
     # Use a form to handle user input and clear the field after submission.
     with st.form(key="qa_form", clear_on_submit=True):
-        user_input = st.text_input("Ask me anything about telco offers (or type 'reset' to clear):")
+        user_input = st.text_input("Ask me anything about your laptop problem :")
         submit_button = st.form_submit_button(label="Submit")
 
     if submit_button and user_input:
