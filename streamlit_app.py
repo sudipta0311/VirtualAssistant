@@ -13,9 +13,9 @@ AZURE_OPENAI_API_VERSION= st.secrets.get("AZURE_OPENAI_API_VERSION")
 from langchain_openai import AzureChatOpenAI
 
 llm = AzureChatOpenAI(
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
-    openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"],
+    azure_endpoint=AZURE_OPENAI_ENDPOINT,
+    azure_deployment=AZURE_OPENAI_DEPLOYMENT_NAME,
+    openai_api_version=AZURE_OPENAI_API_VERSION,
 )
 
 import getpass
@@ -41,7 +41,7 @@ pc = Pinecone('pcsk_2yWxfV_RzZcenPUjLkzMK78P8D2MEX6yfzSZJ2GYCKCfkiHUpgbj8ekG4yWf
 
 
 # vector store
-index_name = "helpdesk"
+index_name = "demoindex"
 
 index = pc.Index(index_name)
 
