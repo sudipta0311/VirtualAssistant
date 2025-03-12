@@ -41,7 +41,7 @@ pc = Pinecone('pcsk_2yWxfV_RzZcenPUjLkzMK78P8D2MEX6yfzSZJ2GYCKCfkiHUpgbj8ekG4yWf
 
 
 # vector store
-index_name = "demoindex"
+index_name = "helpdesk"
 
 index = pc.Index(index_name)
 
