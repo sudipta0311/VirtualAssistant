@@ -270,8 +270,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 def summarize_history(messages):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     summary = text_splitter.create_documents([msg.content for msg in messages])
-    return " ".join(summary[:3])  # Only keep the most relevant parts
-
+    return " ".join(doc.page_content for doc in summary[:3]) 
 
 
 ############################################################
