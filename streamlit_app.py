@@ -250,12 +250,18 @@ def agent(state):
         dict: The updated state with the agent response appended to messages
     """
     print("---CALL AGENT---")
-    messages = state["messages"][-4:] 
-    #model = ChatOpenAI(temperature=0, streaming=True, model="gpt-4-turbo")
+    
+    ########## DEBUG#################
+
+    relevant_messages = [msg for msg in state["messages"] if "user" in msg.content or "assistant" in msg.content][-3:]
+    ########## DEBUG#################
+
+    messages = state["messages"][-2:] 
+    
 
     model=llm
     model = model.bind_tools(tools)
-    response = model.invoke(messages)
+    response = model.invoke(relevant_messages)
     # We return a list, because this will get added to the existing list
 
     return {"messages": [response]}
