@@ -250,7 +250,7 @@ def agent(state):
         dict: The updated state with the agent response appended to messages
     """
     print("---CALL AGENT---")
-    messages = state["messages"][-2:] 
+    messages = state["messages"][-4:] 
     #model = ChatOpenAI(temperature=0, streaming=True, model="gpt-4-turbo")
 
     model=llm
