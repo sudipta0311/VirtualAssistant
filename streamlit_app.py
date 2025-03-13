@@ -386,6 +386,16 @@ from langchain_core.messages import BaseMessage, AIMessage
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 
+import streamlit as st
+
+# Initialize session state for conversation history if it doesn't exist.
+if "conversation" not in st.session_state:
+    st.session_state.conversation = []  # List of tuples like ("user", "question") or ("assistant", "response")
+    # Initialize session state for retry count.
+if "retry_count" not in st.session_state:
+    st.session_state.retry_count = 0
+
+
 # Data model for hallucination grading
 class GradeHallucinations(BaseModel):
     """Binary score for hallucination present in generation answer."""
@@ -418,17 +428,15 @@ class AgentState(TypedDict):
 global_retry_count = 0
 
 def grade_documents_limited(state) -> str:
-    global global_retry_count
-    print("---TEST global retry count is ---", global_retry_count)
 
     decision = grade_documents(state)  # Assume this function is defined elsewhere.
-
+    retry_count = st.session_state.retry_count +1
     if decision == "rewrite":
-        if global_retry_count >= 1:
+        if retry_count >= 1:
             print("---Maximum retries reached: switching to final response---")
             return "final"
         else:
-            global_retry_count += 1
+            st.session_state.retry_count = retry_count + 1
             print("---after increment, global retry count is ---", global_retry_count)
             return "rewrite"
     else:
