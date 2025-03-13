@@ -250,7 +250,7 @@ def agent(state):
         dict: The updated state with the agent response appended to messages
     """
     print("---CALL AGENT---")
-    messages = state["messages"]
+    messages = state["messages"][-6]
     #model = ChatOpenAI(temperature=0, streaming=True, model="gpt-4-turbo")
 
     model=llm
@@ -315,29 +315,31 @@ def generate(state):
     docs = last_message.content
 
     prompt = PromptTemplate(
-        template="""
-        You are a helpdesk agent specializing in troubleshooting computer issues. Your goal is to assist customers by diagnosing problems, providing step-by-step solutions, and ensuring their systems are functioning properly."
+        template = """ 
+            You are a helpdesk agent specializing in troubleshooting computer issues. 
+            Your goal is to diagnose problems and provide clear, step-by-step solutions. 
 
-        Context Information:
-        {context}
+            Context Information:
+            {context}
 
-        Customer's Issue:
-        {question}
+            Customer's Issue:
+            {question}
 
-        Instructions:
-        If the context contains relevant details, use them to provide accurate troubleshooting steps.
-        Ask clarifying questions if needed to better understand the customer's issue.
-        Provide clear, concise, and actionable solutions in a step-by-step format.
-        If multiple solutions exist, suggest the most effective one first.
-        If no relevant information is available, politely inform the customer:
-        "I'm sorry, but I don't have enough details to resolve this issue. Could you provide more information?"
-        Troubleshooting Response Format:
-        Greeting & Acknowledgment: ("I'm here to help! Let's troubleshoot your issue.")
-        Problem Diagnosis: ("Based on your description, this issue may be caused by...")
-        Step-by-Step Solution: ("Try the following steps...")
-        Next Steps: ("If the issue persists, you may need to...")
-        Closing & Reassurance: ("Let me know if this resolves your issue! I'm happy to assist further.")
-        """,
+            Instructions:
+            - Use the context to give accurate troubleshooting steps.
+            - Ask clarifying questions if needed.
+            - Provide concise, actionable solutions in a step-by-step format.
+            - Suggest the most effective solution first.
+            - If no relevant details are available, respond: 
+            "I need more details to troubleshoot this issue. Could you provide more information?"
+
+            Troubleshooting Response Format:
+            - **Problem Diagnosis**: ("The issue may be caused by...")
+            - **Step-by-Step Solution**: ("Try these steps...")
+            - **Next Steps**: ("If the issue persists, you may need to...")
+
+            Keep responses **short, direct, and free from greetings or conclusions**.
+            """,
         input_variables=["context", "question"],
     )
 
