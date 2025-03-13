@@ -251,21 +251,30 @@ def agent(state):
     """
     print("---CALL AGENT---")
     
-    ########## DEBUG#################
 
-    relevant_messages = [msg for msg in state["messages"] if "user" in msg.content or "assistant" in msg.content][-3:]
-    ########## DEBUG#################
-
+    summary = summarize_history(state["messages"])
     messages = state["messages"][-2:] 
     
 
     model=llm
     model = model.bind_tools(tools)
-    response = model.invoke(relevant_messages)
+    response = model.invoke(summary)
     # We return a list, because this will get added to the existing list
 
     return {"messages": [response]}
 
+##############DEBUG #######################################
+
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+def summarize_history(messages):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+    summary = text_splitter.create_documents([msg.content for msg in messages])
+    return " ".join(summary[:3])  # Only keep the most relevant parts
+
+
+
+############################################################
 
 def rewrite(state):
     """
